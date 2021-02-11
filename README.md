@@ -3,6 +3,19 @@
 Redis Migrator will take the keys from one server/db and
 transfer them to another server/db.
 
+## How does it work?
+
+Simply it iterates over the keys in SOURCE and recreates them on DESTINATION.
+
+This will not wipe out any existing data in DESTINATION, with the exception
+of Lists which have to be replaced entirely on the DESTINATION. Strings will
+obviously be replaced. Hashes will only be updated, any pre-existing hash fields
+set on the DESTINATION will remain if they are not replaced by the SOURCE.
+
+Any pre-existing keys on DESTINATION that are not on SOURCE will remain untouched.
+
+## Usage
+
 ```bash
 Usage: redis-migrator --source-host SOURCE-HOST --destination-host DESTINATION-HOST
   [--source-port SOURCE-PORT] [--source-db SOURCE-DB] [--source-user SOURCE-USER]

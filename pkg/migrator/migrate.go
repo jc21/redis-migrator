@@ -2,6 +2,7 @@ package migrator
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"time"
 
@@ -53,7 +54,9 @@ func DoMigration(sourceClient, destinationClient *redis.Client, keyFilter, keyPr
 		case "string":
 			copyString(sourceClient, destinationClient, sourceKey, destinationKey, ttl)
 		case "hash":
-			copyHash(sourceClient, destinationClient, sourceKey, destinationKey, ttl)
+			copyHash(sourceClient, destinationClient, sourceKey, destinationKey)
+		case "list":
+			copyList(sourceClient, destinationClient, sourceKey, destinationKey)
 		default:
 			logger.Error("Key type not yet sypported: %s", keyType)
 			os.Exit(1)
@@ -77,7 +80,7 @@ func copyString(sourceClient, destinationClient *redis.Client, sourceKey, destin
 	}
 }
 
-func copyHash(sourceClient, destinationClient *redis.Client, sourceKey, destinationKey string, ttl time.Duration) {
+func copyHash(sourceClient, destinationClient *redis.Client, sourceKey, destinationKey string) {
 	fieldCount, err := sourceClient.HLen(helpers.Ctx, sourceKey).Result()
 	if err == nil {
 		// Count the fields in the hash
@@ -110,7 +113,49 @@ func copyHash(sourceClient, destinationClient *redis.Client, sourceKey, destinat
 					break
 				}
 			}
-			logger.Trace("=====================")
+		}
+	} else {
+		logger.Trace("copyHash Error: %+v", err)
+	}
+}
+
+func copyList(sourceClient, destinationClient *redis.Client, sourceKey, destinationKey string) {
+	// populate test
+	/*
+		for x := int64(0); x < 3333; x++ {
+			sourceClient.RPush(helpers.Ctx, sourceKey, fmt.Sprintf("example %v", x)).Result()
+		}
+		logger.Trace("added lots of examples for '%s'", sourceKey)
+	*/
+
+	itemsPerPage := float64(1000)
+	itemCount, err := sourceClient.LLen(helpers.Ctx, sourceKey).Result()
+	if err == nil {
+		// Count the items in the List
+		logger.Trace("List '%s' has %d items", sourceKey, itemCount)
+
+		if itemCount > 0 {
+			pages := math.Ceil(float64(itemCount) / itemsPerPage)
+			// Remove the key from destination, prevents contamination
+			destinationClient.Del(helpers.Ctx, destinationKey).Result()
+
+			// For each page of up to 1000 items:
+			for i := float64(0); i < pages; i++ {
+				start := i * itemsPerPage
+				end := math.Min(start+itemsPerPage, float64(itemCount))
+				items, lrangeErr := sourceClient.LRange(helpers.Ctx, sourceKey, int64(start), int64(end)).Result()
+				if lrangeErr == nil {
+					// Add to destination
+					// Requires a []interface{} not a []string
+					itemsInterface := make([]interface{}, len(items))
+					for i := range items {
+						itemsInterface[i] = items[i]
+					}
+					destinationClient.RPush(helpers.Ctx, destinationKey, itemsInterface...)
+				} else {
+					logger.Trace("copyList Error: %+v", lrangeErr)
+				}
+			}
 		}
 	} else {
 		logger.Trace("copyHash Error: %+v", err)
