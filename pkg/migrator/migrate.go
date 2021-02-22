@@ -26,7 +26,7 @@ func DoMigration(sourceClient, destinationClient *redis.Client, keyFilter, keyPr
 		os.Exit(1)
 	}
 
-	logger.Info("Migration running, each dot is 1,000 keys, each row is 50,000 keys")
+	logger.Info("Migration running, each dot is ~1,000 keys")
 
 	var cursor uint64
 	var n int
@@ -34,6 +34,7 @@ func DoMigration(sourceClient, destinationClient *redis.Client, keyFilter, keyPr
 	counter := 0
 	skipped := 0
 	dots := 0
+	var percentage int64
 
 	for {
 		var keys []string
@@ -76,11 +77,16 @@ func DoMigration(sourceClient, destinationClient *redis.Client, keyFilter, keyPr
 		fmt.Print(".")
 		dots++
 		n += len(keys)
-		if cursor == 0 {
-			break
+		if dots%10 == 0 {
+			fmt.Print(" ")
 		}
 		if dots%50 == 0 {
-			fmt.Print("\n")
+			// Print a percentage
+			percentage = int64(math.Round((float64(counter) / float64(size)) * 100))
+			fmt.Printf("%d%% (%d / %d)\n", percentage, counter, size)
+		}
+		if cursor == 0 {
+			break
 		}
 	}
 
