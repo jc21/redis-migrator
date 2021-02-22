@@ -70,6 +70,6 @@ go get github.com/jc21/redis-migrator
 
 ```bash
 git clone https://github.com/jc21/redis-migrator && cd redis-migrator
-go build -v -ldflags="-X main.version=1.0.1" -o bin/redis-migrator cmd/redis-migrator/main.go
+go build -ldflags="-X main.version=1.0.1" -o bin/redis-migrator cmd/redis-migrator/main.go
 ./bin/redis-migrator -h
 ```

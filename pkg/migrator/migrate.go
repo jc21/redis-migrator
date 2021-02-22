@@ -26,51 +26,65 @@ func DoMigration(sourceClient, destinationClient *redis.Client, keyFilter, keyPr
 		os.Exit(1)
 	}
 
-	logger.Info("Migration running...")
+	logger.Info("Migration running, each dot is 1,000 keys, each row is 50,000 keys")
 
-	cmd := sourceClient.Keys(helpers.Ctx, keyFilter)
-	if cmd.Err() != nil {
-		logger.Error("SOURCE: %s", cmd.Err())
-		os.Exit(1)
-	}
-
-	keys, err := cmd.Result()
-	if err != nil {
-		logger.Error("SOURCE: %s", err)
-		os.Exit(1)
-	}
+	var cursor uint64
+	var n int
 
 	counter := 0
 	skipped := 0
-	for _, sourceKey := range keys {
-		destinationKey := keyPrefix + sourceKey
+	dots := 0
 
-		// read from source
-		typeCmd := sourceClient.Type(helpers.Ctx, sourceKey)
-		keyType := typeCmd.Val()
-		ttl := sourceClient.TTL(helpers.Ctx, sourceKey).Val()
-
-		logger.Trace("Key '%s' type '%s' ttl: %v destination: '%s'", sourceKey, keyType, ttl, destinationKey)
-
-		switch keyType {
-		case "string":
-			copyString(sourceClient, destinationClient, sourceKey, destinationKey, ttl)
-		case "hash":
-			copyHash(sourceClient, destinationClient, sourceKey, destinationKey)
-		case "list":
-			copyList(sourceClient, destinationClient, sourceKey, destinationKey)
-		case "none":
-			// Key does not exist, or at least not anymore.
-			skipped++
-		default:
-			logger.Error("Key type not yet supported: %s", keyType)
-			logger.Error("Migration was NOT completed!")
+	for {
+		var keys []string
+		var scanErr error
+		keys, cursor, scanErr = sourceClient.Scan(helpers.Ctx, cursor, keyFilter, 1000).Result()
+		if scanErr != nil {
+			logger.Error("Scan Error: %+v", scanErr)
 			os.Exit(1)
 		}
 
-		counter++
+		for _, sourceKey := range keys {
+			destinationKey := keyPrefix + sourceKey
+
+			// read from source
+			typeCmd := sourceClient.Type(helpers.Ctx, sourceKey)
+			keyType := typeCmd.Val()
+			ttl := sourceClient.TTL(helpers.Ctx, sourceKey).Val()
+
+			logger.Trace("Key '%s' type '%s' ttl: %v destination: '%s'", sourceKey, keyType, ttl, destinationKey)
+
+			switch keyType {
+			case "string":
+				copyString(sourceClient, destinationClient, sourceKey, destinationKey, ttl)
+			case "hash":
+				copyHash(sourceClient, destinationClient, sourceKey, destinationKey)
+			case "list":
+				copyList(sourceClient, destinationClient, sourceKey, destinationKey)
+			case "none":
+				// Key does not exist, or at least not anymore.
+				skipped++
+			default:
+				logger.Error("Key type not yet supported: %s", keyType)
+				logger.Error("Migration was NOT completed!")
+				os.Exit(1)
+			}
+
+			counter++
+		}
+
+		fmt.Print(".")
+		dots++
+		n += len(keys)
+		if cursor == 0 {
+			break
+		}
+		if dots%50 == 0 {
+			fmt.Print("\n")
+		}
 	}
 
+	fmt.Print("\n")
 	logger.Info("Migration completed with %d keys, %d skipped :)", counter, skipped)
 	os.Exit(0)
 }
