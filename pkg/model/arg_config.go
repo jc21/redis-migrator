@@ -2,6 +2,8 @@ package model
 
 import "fmt"
 
+var version *string
+
 // ArgConfig is the settings for passing arguments to the command
 type ArgConfig struct {
 	SourceHost         string `arg:"--source-host,required" help:"source redis server hostname"`
@@ -17,6 +19,16 @@ type ArgConfig struct {
 	KeyFilter          string `arg:"--source-filter" default:"*" help:"source keys filter string"`
 	KeyPrefix          string `arg:"--destination-prefix" help:"destination key prefix to prepend"`
 	Verbose            bool   `arg:"-v" help:"Print a lot more info"`
+}
+
+// SetVersion ...
+func SetVersion(ver *string) {
+	version = ver
+}
+
+// Version ...
+func (ArgConfig) Version() string {
+	return fmt.Sprintf("v%s", *version)
 }
 
 // Description returns a simple description of the command

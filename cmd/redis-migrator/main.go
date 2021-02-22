@@ -10,8 +10,10 @@ import (
 	"redismigrator/pkg/migrator"
 )
 
+var version string
+
 func main() {
-	argConfig := config.GetConfig()
+	argConfig := config.GetConfig(&version)
 	logger.Init(argConfig)
 	logger.Trace("Args: %+v", argConfig)
 

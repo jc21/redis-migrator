@@ -41,6 +41,7 @@ func DoMigration(sourceClient, destinationClient *redis.Client, keyFilter, keyPr
 	}
 
 	counter := 0
+	skipped := 0
 	for _, sourceKey := range keys {
 		destinationKey := keyPrefix + sourceKey
 
@@ -58,15 +59,19 @@ func DoMigration(sourceClient, destinationClient *redis.Client, keyFilter, keyPr
 			copyHash(sourceClient, destinationClient, sourceKey, destinationKey)
 		case "list":
 			copyList(sourceClient, destinationClient, sourceKey, destinationKey)
+		case "none":
+			// Key does not exist, or at least not anymore.
+			skipped++
 		default:
-			logger.Error("Key type not yet sypported: %s", keyType)
+			logger.Error("Key type not yet supported: %s", keyType)
+			logger.Error("Migration was NOT completed!")
 			os.Exit(1)
 		}
 
 		counter++
 	}
 
-	logger.Info("Migration completed with %d keys :)", counter)
+	logger.Info("Migration completed with %d keys, %d skipped :)", counter, skipped)
 	os.Exit(0)
 }
 
