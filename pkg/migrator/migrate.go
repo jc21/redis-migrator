@@ -47,8 +47,9 @@ func DoMigration(sourceClient, destinationClient *redis.Client, keyFilter, keyPr
 		// read from source
 		typeCmd := sourceClient.Type(helpers.Ctx, sourceKey)
 		keyType := typeCmd.Val()
-
 		ttl := sourceClient.TTL(helpers.Ctx, sourceKey).Val()
+
+		logger.Trace("Key '%s' type '%s' ttl: %v destination: '%s'", sourceKey, keyType, ttl, destinationKey)
 
 		switch keyType {
 		case "string":
@@ -71,7 +72,12 @@ func DoMigration(sourceClient, destinationClient *redis.Client, keyFilter, keyPr
 
 func copyString(sourceClient, destinationClient *redis.Client, sourceKey, destinationKey string, ttl time.Duration) {
 	val, err := sourceClient.Get(helpers.Ctx, sourceKey).Result()
+	logger.Trace("Key '%s' val '%v'", sourceKey, val)
 	if err == nil {
+		// Small hack for situations where duration is negative, causing syntax error
+		if ttl < 1 {
+			ttl = 0
+		}
 		if setErr := destinationClient.Set(helpers.Ctx, destinationKey, val, ttl).Err(); setErr != nil {
 			logger.Error("Could not set '%s' on destination: %s", destinationKey, setErr.Error())
 		}
@@ -120,14 +126,6 @@ func copyHash(sourceClient, destinationClient *redis.Client, sourceKey, destinat
 }
 
 func copyList(sourceClient, destinationClient *redis.Client, sourceKey, destinationKey string) {
-	// populate test
-	/*
-		for x := int64(0); x < 3333; x++ {
-			sourceClient.RPush(helpers.Ctx, sourceKey, fmt.Sprintf("example %v", x)).Result()
-		}
-		logger.Trace("added lots of examples for '%s'", sourceKey)
-	*/
-
 	itemsPerPage := float64(1000)
 	itemCount, err := sourceClient.LLen(helpers.Ctx, sourceKey).Result()
 	if err == nil {
